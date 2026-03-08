@@ -2,4 +2,3 @@
 /pkg
 /www/pkg
 /.direnv
-flake.lock

@@ -23,9 +23,6 @@
           ];
 
           shellHook = ''
-            echo "wasm_synth dev shell"
-            echo "Build: wasm-pack build --target web"
-            echo "Serve: miniserve www/ --index index.html --header 'Cross-Origin-Opener-Policy: same-origin' --header 'Cross-Origin-Embedder-Policy: require-corp' -p 8080"
           '';
         };
       });
