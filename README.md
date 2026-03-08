@@ -13,8 +13,10 @@ A browser-based subtractive synthesizer. All DSP runs in Rust compiled to WebAss
 - Soft-clip distortion (tanh waveshaping)
 - 8-voice polyphony with voice stealing
 - 25+ presets (leads, basses, pads, keys, stabs, FX)
-- Keyboard input via QWERTY/number rows with focus capture
-- Configurable octave and root note
+- Keyboard input via ASDF (white keys) and QWERTY (black keys) rows with focus capture
+- Configurable octave and root note with Z/X octave switching
+- Responsive full-width piano keyboard
+- Filter type toggle buttons (LP/HP/BP)
 
 ## Setup
 
@@ -36,9 +38,10 @@ direnv allow
 ## Usage
 
 1. Click "Click here to play" to capture keyboard input
-2. Play notes with the QWERTY row (white keys) and number row (black keys)
-3. Select a preset or tweak parameters manually
-4. Press Escape or click outside to release keyboard capture
+2. Play notes with the ASDF row (white keys) and QWERTY row (black keys)
+3. Press Z/X to shift the octave down/up
+4. Select a preset or tweak parameters manually
+5. Press Escape or click outside to release keyboard capture
 
 ## Project Structure
 
