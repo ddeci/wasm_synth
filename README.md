@@ -43,16 +43,21 @@ direnv allow
 ## Project Structure
 
 ```
-src/
-  lib.rs          — wasm-bindgen entry, Synth struct, parameter routing
-  oscillator.rs   — polyblep-antialiased oscillators
-  filter.rs       — state-variable filter
-  envelope.rs     — ADSR envelope
-  lfo.rs          — sine LFO
-  voice.rs        — voice (osc+filter+env+lfo), 8-voice pool
-www/
-  index.html      — UI layout
-  style.css       — styling
-  main.js         — audio context, keyboard input, presets, parameter UI
-  worklet.js      — AudioWorkletProcessor, WASM instantiation
+wasm_synth/
+├── flake.nix           # Nix dev environment
+├── Cargo.toml
+├── build.sh            # Build WASM module
+├── serve.sh            # Build + start dev server
+├── src/
+│   ├── lib.rs          # wasm-bindgen entry, Synth struct, param routing
+│   ├── oscillator.rs   # Polyblep saw/square, sine, triangle
+│   ├── filter.rs       # State-variable filter (LP/HP/BP)
+│   ├── envelope.rs     # ADSR envelope
+│   ├── lfo.rs          # Sine LFO
+│   └── voice.rs        # Voice (osc+filter+env+lfo), 8-voice pool
+└── www/
+    ├── index.html      # UI layout
+    ├── style.css       # Styling
+    ├── main.js         # Audio context, keyboard, presets, params
+    └── worklet.js      # AudioWorkletProcessor, WASM instantiation
 ```
