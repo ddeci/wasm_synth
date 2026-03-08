@@ -1,5 +1,6 @@
 let audioCtx = null;
 let workletNode = null;
+let analyser = null;
 let synthReady = false;
 let pendingNotes = [];
 let keyboardCaptured = false;
@@ -86,7 +87,11 @@ async function doStart() {
   workletNode = new AudioWorkletNode(audioCtx, 'synth-processor', {
     outputChannelCount: [1],
   });
-  workletNode.connect(audioCtx.destination);
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  workletNode.connect(analyser);
+  analyser.connect(audioCtx.destination);
 
   workletNode.port.onmessage = (e) => {
     if (e.data.type === 'ready') {
@@ -329,8 +334,6 @@ function p(osc1, osc2, mix, detune, oct, noise,
 
 const PRESETS = {
   //                osc1 osc2 mix   det   oct  noise  cut   res  ft   famt  fA    fD    fS    fR    aA    aD    aS    aR    lR   lA    gain  drv
-  'Init':          p(1,   1,   0.3,  0.1,  0,   0,     8000, 0,   0,   0,    0.01, 0.3,  0,    0.3,  0.01, 0.2,  0.7,  0.3,  1,   0,    0.5,  0),
-
   // --- LEADS ---
   'Classic Lead':  p(1,   1,   0.4,  0.08, 0,   0,     2000, 0.3, 0,   0.6,  0.01, 0.3,  0.1,  0.2,  0.01, 0.15, 0.75, 0.2,  1,   0,    0.5,  0),
   'Screamer':      p(1,   2,   0.5,  0.06, 0,   0,     1200, 0.7, 0,   0.9,  0.01, 0.2,  0,    0.1,  0.005,0.08, 0.85, 0.15, 1,   0,    0.4,  0.5),
@@ -406,7 +409,7 @@ function setupPresets() {
     btn.className = 'preset-btn';
     btn.dataset.preset = name;
     btn.textContent = name;
-    if (name === 'Init') btn.classList.add('active');
+    if (name === 'Classic Lead') btn.classList.add('active');
     btn.addEventListener('click', () => {
       start();
       applyPreset(name);
@@ -468,12 +471,14 @@ function setupNoteGrid() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
   rebuildPiano();
   setupPianoMouse();
+  initVisualizer();
   setupNoteGrid();
   setupCapture();
   setupPresets();
+  applyPreset('Classic Lead');
 
   document.querySelectorAll('[data-param]').forEach(el => {
     if (el.classList.contains('filter-type-toggle')) return;
@@ -499,4 +504,51 @@ document.addEventListener('DOMContentLoaded', () => {
       send({ type: 'param', param, value });
     });
   });
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+function initVisualizer() {
+  const canvas = document.getElementById('visualizer');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  function draw() {
+    requestAnimationFrame(draw);
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#0a0e14';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ff6b8a';
+    ctx.beginPath();
+
+    if (analyser) {
+      const buf = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteTimeDomainData(buf);
+      const sliceWidth = w / buf.length;
+      let x = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const y = (buf[i] / 255) * h;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+        x += sliceWidth;
+      }
+    } else {
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
+    }
+
+    ctx.stroke();
+  }
+
+  draw();
+}
