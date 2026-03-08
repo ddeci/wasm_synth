@@ -10,9 +10,11 @@ const NATURAL_NOTES = [0, 2, 4, 5, 7, 9, 11]; // C D E F G A B semitone offsets
 let currentOctave = 4;
 let currentRoot = 0; // index into NATURAL_NOTES: 0=C, 1=D, 2=E, 3=F, 4=G, 5=A, 6=B
 
-// QWERTY row = white keys, number row = black keys
-const WHITE_BINDS = ['q','w','e','r','t','y','u','i','o','p','[',']'];
-const BLACK_BINDS = ['2','3','5','6','7','9','0','-','='];
+// Ableton-style: home row = white keys, QWERTY row = black keys
+// First octave:  A=C W=C# S=D E=D# D=E F=F T=F# G=G Y=G# H=A U=A# J=B
+// Second octave: K=C O=C# L=D P=D# ;=E
+const WHITE_BINDS = ['a','s','d','f','g','h','j','k','l',';',"'"];
+const BLACK_BINDS = ['w','e','t','y','u','o','p'];
 
 // Build key map dynamically based on the piano layout
 function buildLayout() {
@@ -115,7 +117,13 @@ function send(msg) {
 function syncParams() {
   document.querySelectorAll('[data-param]').forEach(el => {
     const param = parseInt(el.dataset.param);
-    const value = parseFloat(el.value);
+    let value;
+    if (el.classList.contains('filter-type-toggle')) {
+      const active = el.querySelector('.filter-type-btn.active');
+      value = active ? parseFloat(active.dataset.value) : 0;
+    } else {
+      value = parseFloat(el.value);
+    }
     send({ type: 'param', param, value });
   });
 }
@@ -163,8 +171,25 @@ function setupCapture() {
     e.preventDefault();
     if (e.repeat) return;
 
+    const key = e.key.toLowerCase();
+
+    // Z/X for octave down/up (Ableton-style)
+    if (key === 'z' || key === 'x') {
+      releaseAll();
+      currentOctave = Math.max(1, Math.min(7, currentOctave + (key === 'x' ? 1 : -1)));
+      // Update the note grid button and selection
+      const btn = document.getElementById('note-picker-btn');
+      btn.textContent = `${NATURAL_NAMES[currentRoot]}${currentOctave}`;
+      const grid = document.getElementById('note-grid');
+      grid.querySelector('.selected')?.classList.remove('selected');
+      const cell = grid.querySelector(`[data-root="${currentRoot}"][data-octave="${currentOctave}"]`);
+      if (cell) cell.classList.add('selected');
+      rebuildPiano();
+      return;
+    }
+
     const { keyMap } = buildLayout();
-    const note = keyMap[e.key.toLowerCase()];
+    const note = keyMap[key];
     if (note === undefined) return;
 
     if (activeKeys.has(note)) return;
@@ -189,7 +214,7 @@ function rebuildPiano() {
   piano.innerHTML = '';
 
   const { whites, blacks, noteToKey } = buildLayout();
-  const whiteKeyWidth = 52;
+  const numWhites = Math.min(whites.length, WHITE_BINDS.length);
 
   // White keys
   whites.forEach((w, i) => {
@@ -205,24 +230,23 @@ function rebuildPiano() {
     piano.appendChild(key);
   });
 
-  // Black keys — position relative to white keys
-  const pianoWidth = Math.min(whites.length, WHITE_BINDS.length) * whiteKeyWidth;
-  const blackKeyWidth = 32;
-
+  // Black keys — position relative to white keys using percentages
   blacks.forEach((b) => {
     const bind = noteToKey[b.note];
     if (!bind) return;
 
-    const left = b.afterWhiteIndex * whiteKeyWidth - 16;
-    // Skip if the black key would hang off the edge
-    if (left + blackKeyWidth > pianoWidth) return;
+    if (b.afterWhiteIndex >= numWhites) return;
 
     const key = document.createElement('div');
     key.className = 'black-key';
     key.dataset.note = b.note;
 
     key.innerHTML = `<span class="key-bind">${bind}</span>`;
-    key.style.left = `${left}px`;
+    const whiteWidthPct = 100 / numWhites;
+    const blackWidthPct = whiteWidthPct * 0.6;
+    const leftPct = b.afterWhiteIndex * whiteWidthPct - blackWidthPct / 2;
+    key.style.left = `${leftPct}%`;
+    key.style.width = `${blackWidthPct}%`;
 
     addNoteEvents(key, b.note);
     piano.appendChild(key);
@@ -338,7 +362,11 @@ function applyPreset(name) {
     const el = document.querySelector(`[data-param="${param}"]`);
     if (!el) continue;
 
-    if (el.tagName === 'SELECT') {
+    if (el.classList.contains('filter-type-toggle')) {
+      el.querySelectorAll('.filter-type-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.value === String(value));
+      });
+    } else if (el.tagName === 'SELECT') {
       el.value = String(value);
     } else {
       el.value = value;
@@ -429,6 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPresets();
 
   document.querySelectorAll('[data-param]').forEach(el => {
+    if (el.classList.contains('filter-type-toggle')) return;
     el.addEventListener('input', () => {
       start();
       const param = parseInt(el.dataset.param);
@@ -436,6 +465,19 @@ document.addEventListener('DOMContentLoaded', () => {
       send({ type: 'param', param, value });
       const label = el.nextElementSibling;
       if (label) label.textContent = value.toFixed(2);
+    });
+  });
+
+  // Filter type toggle buttons
+  document.querySelectorAll('.filter-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      start();
+      const toggle = btn.closest('.filter-type-toggle');
+      toggle.querySelectorAll('.filter-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const param = parseInt(toggle.dataset.param);
+      const value = parseFloat(btn.dataset.value);
+      send({ type: 'param', param, value });
     });
   });
 });
