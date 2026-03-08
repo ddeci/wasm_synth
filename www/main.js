@@ -1,0 +1,408 @@
+let audioCtx = null;
+let workletNode = null;
+let synthReady = false;
+let pendingNotes = [];
+let keyboardCaptured = false;
+
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const NATURAL_NOTES = [0, 2, 4, 5, 7, 9, 11]; // C D E F G A B semitone offsets
+
+let currentOctave = 4;
+let currentRoot = 0; // index into NATURAL_NOTES: 0=C, 1=D, 2=E, 3=F, 4=G, 5=A, 6=B
+
+// QWERTY row = white keys, number row = black keys
+const WHITE_BINDS = ['q','w','e','r','t','y','u','i','o','p','[',']'];
+const BLACK_BINDS = ['2','3','5','6','7','9','0','-','='];
+
+// Build key map dynamically based on the piano layout
+function buildLayout() {
+  const baseNote = (currentOctave + 1) * 12 + NATURAL_NOTES[currentRoot];
+
+  // Generate ~20 semitones of chromatic notes from baseNote
+  const numSemitones = 22;
+  const whites = []; // { note, name }
+  const blacks = []; // { note, name, afterWhiteIndex }
+
+  let whiteCount = 0;
+  for (let s = 0; s < numSemitones; s++) {
+    const note = baseNote + s;
+    const name = NOTE_NAMES[note % 12];
+    const isBlack = name.includes('#');
+    if (isBlack) {
+      blacks.push({ note, name, afterWhiteIndex: whiteCount });
+    } else {
+      whites.push({ note, name });
+      whiteCount++;
+    }
+  }
+
+  // Map keyboard binds to notes
+  const keyMap = {};
+  const noteToKey = {};
+
+  whites.forEach((w, i) => {
+    if (i < WHITE_BINDS.length) {
+      keyMap[WHITE_BINDS[i]] = w.note;
+      noteToKey[w.note] = WHITE_BINDS[i].toUpperCase();
+    }
+  });
+
+  let blackBindIdx = 0;
+  blacks.forEach((b) => {
+    // Only assign binds to black keys that fall between bound white keys
+    if (b.afterWhiteIndex > 0 && b.afterWhiteIndex <= WHITE_BINDS.length && blackBindIdx < BLACK_BINDS.length) {
+      keyMap[BLACK_BINDS[blackBindIdx]] = b.note;
+      noteToKey[b.note] = BLACK_BINDS[blackBindIdx].toUpperCase();
+      blackBindIdx++;
+    }
+  });
+
+  return { whites, blacks, keyMap, noteToKey };
+}
+
+function getNoteLabel(midiNote) {
+  return NOTE_NAMES[midiNote % 12] + Math.floor(midiNote / 12 - 1);
+}
+
+const activeKeys = new Set();
+
+let startPromise = null;
+function start() {
+  if (startPromise) return startPromise;
+  startPromise = doStart();
+  return startPromise;
+}
+
+async function doStart() {
+  audioCtx = new AudioContext({ latencyHint: 'interactive' });
+
+  const [, wasmBytes] = await Promise.all([
+    audioCtx.audioWorklet.addModule('worklet.js'),
+    fetch('pkg/wasm_synth_bg.wasm').then(r => r.arrayBuffer()),
+  ]);
+
+  workletNode = new AudioWorkletNode(audioCtx, 'synth-processor', {
+    outputChannelCount: [1],
+  });
+  workletNode.connect(audioCtx.destination);
+
+  workletNode.port.onmessage = (e) => {
+    if (e.data.type === 'ready') {
+      synthReady = true;
+      setCaptured(true);
+      syncParams();
+      for (const msg of pendingNotes) {
+        workletNode.port.postMessage(msg);
+      }
+      pendingNotes = [];
+    } else if (e.data.type === 'error') {
+      console.error('Synth error:', e.data.message);
+    }
+  };
+
+  workletNode.port.postMessage({ type: 'init', wasmBytes });
+}
+
+function send(msg) {
+  if (!workletNode) return;
+  if (!synthReady) {
+    pendingNotes.push(msg);
+    return;
+  }
+  workletNode.port.postMessage(msg);
+}
+
+function syncParams() {
+  document.querySelectorAll('[data-param]').forEach(el => {
+    const param = parseInt(el.dataset.param);
+    const value = parseFloat(el.value);
+    send({ type: 'param', param, value });
+  });
+}
+
+function releaseAll() {
+  for (const note of activeKeys) {
+    send({ type: 'noteOff', note });
+    highlightKey(note, false);
+  }
+  activeKeys.clear();
+}
+
+function setCaptured(on) {
+  keyboardCaptured = on;
+  const zone = document.getElementById('capture-zone');
+  const label = document.getElementById('capture-label');
+  zone.classList.toggle('active', on);
+  label.textContent = on ? 'Keyboard captured — playing!' : 'Click here to play';
+  if (!on) releaseAll();
+}
+
+function setupCapture() {
+  const input = document.getElementById('capture-input');
+
+  input.addEventListener('focus', () => {
+    start();
+    setCaptured(true);
+  });
+
+  input.addEventListener('blur', () => {
+    setCaptured(false);
+  });
+
+  // Clear any typed text constantly so the input never fills up
+  input.addEventListener('input', () => {
+    input.value = '';
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      input.blur();
+      return;
+    }
+    if (e.key === 'Tab') return;
+    e.preventDefault();
+    if (e.repeat) return;
+
+    const { keyMap } = buildLayout();
+    const note = keyMap[e.key.toLowerCase()];
+    if (note === undefined) return;
+
+    if (activeKeys.has(note)) return;
+    activeKeys.add(note);
+    send({ type: 'noteOn', note, velocity: 0.8 });
+    highlightKey(note, true);
+  });
+
+  input.addEventListener('keyup', (e) => {
+    const { keyMap } = buildLayout();
+    const note = keyMap[e.key.toLowerCase()];
+    if (note === undefined) return;
+    activeKeys.delete(note);
+    send({ type: 'noteOff', note });
+    highlightKey(note, false);
+  });
+}
+
+// Piano
+function rebuildPiano() {
+  const piano = document.getElementById('piano');
+  piano.innerHTML = '';
+
+  const { whites, blacks, noteToKey } = buildLayout();
+  const whiteKeyWidth = 52;
+
+  // White keys
+  whites.forEach((w, i) => {
+    if (i >= WHITE_BINDS.length) return;
+    const key = document.createElement('div');
+    key.className = 'white-key';
+    key.dataset.note = w.note;
+
+    const bind = noteToKey[w.note] || '';
+    key.innerHTML = `<span class="key-note">${getNoteLabel(w.note)}</span><span class="key-bind">${bind}</span>`;
+
+    addNoteEvents(key, w.note);
+    piano.appendChild(key);
+  });
+
+  // Black keys — position relative to white keys
+  const pianoWidth = Math.min(whites.length, WHITE_BINDS.length) * whiteKeyWidth;
+  const blackKeyWidth = 32;
+
+  blacks.forEach((b) => {
+    const bind = noteToKey[b.note];
+    if (!bind) return;
+
+    const left = b.afterWhiteIndex * whiteKeyWidth - 16;
+    // Skip if the black key would hang off the edge
+    if (left + blackKeyWidth > pianoWidth) return;
+
+    const key = document.createElement('div');
+    key.className = 'black-key';
+    key.dataset.note = b.note;
+
+    key.innerHTML = `<span class="key-bind">${bind}</span>`;
+    key.style.left = `${left}px`;
+
+    addNoteEvents(key, b.note);
+    piano.appendChild(key);
+  });
+}
+
+function addNoteEvents(el, note) {
+  let down = false;
+  el.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    down = true;
+    start();
+    document.getElementById('capture-input').focus();
+    send({ type: 'noteOn', note, velocity: 0.8 });
+    highlightKey(note, true);
+  });
+  el.addEventListener('mouseup', () => {
+    if (!down) return;
+    down = false;
+    send({ type: 'noteOff', note });
+    highlightKey(note, false);
+  });
+  el.addEventListener('mouseleave', () => {
+    if (!down) return;
+    down = false;
+    send({ type: 'noteOff', note });
+    highlightKey(note, false);
+  });
+}
+
+function highlightKey(note, on) {
+  const key = document.querySelector(`[data-note="${note}"]`);
+  if (key) key.classList.toggle('active', on);
+}
+
+// Presets
+// Param IDs:
+//   0=osc1 wave, 1=osc2 wave, 2=mix, 3=detune, 4=osc2 oct, 5=noise
+//   10=cutoff, 11=reso, 12=filter type
+//   13=filt env amt, 14=filt A, 15=filt D, 16=filt S, 17=filt R
+//   20=amp A, 21=amp D, 22=amp S, 23=amp R
+//   25=lfo rate, 26=lfo amount
+//   30=gain, 31=drive
+// Waveforms: 0=sine, 1=saw, 2=square, 3=tri | Filter: 0=LP, 1=HP, 2=BP
+
+function p(osc1, osc2, mix, detune, oct, noise,
+           cutoff, reso, ftype,
+           famt, fA, fD, fS, fR,
+           aA, aD, aS, aR,
+           lfoRate, lfoAmt,
+           gain, drive) {
+  return {
+    0: osc1, 1: osc2, 2: mix, 3: detune, 4: oct, 5: noise,
+    10: cutoff, 11: reso, 12: ftype,
+    13: famt, 14: fA, 15: fD, 16: fS, 17: fR,
+    20: aA, 21: aD, 22: aS, 23: aR,
+    25: lfoRate, 26: lfoAmt,
+    30: gain, 31: drive,
+  };
+}
+
+const PRESETS = {
+  //                osc1 osc2 mix   det   oct  noise  cut   res  ft   famt  fA    fD    fS    fR    aA    aD    aS    aR    lR   lA    gain  drv
+  'Init':          p(1,   1,   0.3,  0.1,  0,   0,     8000, 0,   0,   0,    0.01, 0.3,  0,    0.3,  0.01, 0.2,  0.7,  0.3,  1,   0,    0.5,  0),
+
+  // --- LEADS ---
+  'Classic Lead':  p(1,   1,   0.4,  0.08, 0,   0,     2000, 0.3, 0,   0.6,  0.01, 0.3,  0.1,  0.2,  0.01, 0.15, 0.75, 0.2,  1,   0,    0.5,  0),
+  'Screamer':      p(1,   2,   0.5,  0.06, 0,   0,     1200, 0.7, 0,   0.9,  0.01, 0.2,  0,    0.1,  0.005,0.08, 0.85, 0.15, 1,   0,    0.4,  0.5),
+  'Acid Lead':     p(2,   2,   0,    0,    0,   0,     400,  0.88,0,   0.95, 0.001,0.15, 0,    0.05, 0.001,0.1,  0,    0.05, 1,   0,    0.5,  0.3),
+  'Fizzy Lead':    p(1,   1,   0.5,  0.15, 0,   0.08,  3000, 0.4, 0,   0.5,  0.01, 0.25, 0.15, 0.2,  0.005,0.1,  0.8,  0.2,  5.5, 0.15, 0.45, 0.2),
+
+  // --- BASSES ---
+  'Thick Bass':    p(1,   2,   0.5,  0.05, -1,  0,     600,  0.5, 0,   0.7,  0.001,0.2,  0,    0.1,  0.005,0.15, 0.6,  0.1,  1,   0,    0.55, 0.15),
+  'Sub Bass':      p(0,   0,   0.3,  0,    -1,  0,     300,  0.1, 0,   0,    0.01, 0.1,  0,    0.1,  0.005,0.1,  0.9,  0.08, 1,   0,    0.65, 0),
+  'Reese':         p(1,   1,   0.5,  0.12, 0,   0,     1000, 0.35,0,   0.4,  0.01, 0.5,  0.2,  0.3,  0.01, 0.3,  0.8,  0.15, 0.3, 0.3,  0.5,  0.1),
+  'Dirty Bass':    p(2,   1,   0.6,  0.03, -1,  0,     500,  0.6, 0,   0.8,  0.001,0.18, 0,    0.08, 0.001,0.12, 0.7,  0.08, 1,   0,    0.5,  0.6),
+  'Wobble Bass':   p(1,   2,   0.5,  0.05, -1,  0,     800,  0.5, 0,   0,    0.01, 0.3,  0,    0.3,  0.005,0.1,  0.8,  0.1,  3.0, 0.7,  0.5,  0.2),
+
+  // --- PADS ---
+  'Soft Pad':      p(3,   0,   0.5,  0.08, 0,   0,     2500, 0.05,0,   0.2,  0.5,  0.8,  0.3,  1.5,  0.8,  0.6,  0.7,  1.5,  0.4, 0.15, 0.4,  0),
+  'Warm Pad':      p(1,   1,   0.5,  0.15, 0,   0,     1800, 0.2, 0,   0.3,  0.6,  1.0,  0.2,  2.0,  1.0,  0.8,  0.65, 2.0,  0.2, 0.1,  0.4,  0),
+  'Dark Pad':      p(1,   2,   0.5,  0.2,  -1,  0,     800,  0.3, 0,   0.15, 0.8,  1.2,  0.1,  2.0,  1.5,  1.0,  0.5,  2.5,  0.15,0.2,  0.4,  0),
+  'Ethereal':      p(0,   3,   0.6,  0.2,  1,   0.05,  2500, 0.15,0,   0.3,  1.0,  1.2,  0.2,  2.5,  1.2,  1.0,  0.5,  2.5,  0.5, 0.25, 0.35, 0),
+
+  // --- KEYS & PLUCKS ---
+  'Pluck':         p(1,   3,   0.35, 0.05, 0,   0,     1200, 0.3, 0,   0.8,  0.001,0.2,  0,    0.15, 0.001,0.15, 0,    0.2,  1,   0,    0.55, 0),
+  'Bell':          p(0,   3,   0.4,  0.5,  1,   0,     6000, 0.05,0,   0.5,  0.001,0.8,  0,    1.0,  0.001,1.0,  0,    1.5,  1,   0,    0.4,  0),
+  'Marimba':       p(0,   3,   0.3,  0,    0,   0,     3000, 0.1, 0,   0.7,  0.001,0.15, 0,    0.1,  0.001,0.12, 0,    0.15, 1,   0,    0.55, 0),
+  'Organ':         p(0,   2,   0.4,  0,    -1,  0,     10000,0,   0,   0,    0.01, 0.01, 0,    0.01, 0.005,0.01, 1.0,  0.01, 1,   0,    0.35, 0.05),
+
+  // --- STABS & HITS ---
+  'Brass Stab':    p(1,   2,   0.4,  0.03, 0,   0,     800,  0.3, 0,   0.85, 0.01, 0.15, 0,    0.1,  0.02, 0.15, 0.5,  0.12, 1,   0,    0.5,  0.1),
+  'Hoover':        p(1,   1,   0.5,  0.3,  -1,  0,     2000, 0.4, 0,   0.6,  0.02, 0.3,  0.2,  0.2,  0.02, 0.2,  0.7,  0.2,  1,   0,    0.4,  0.35),
+  'Stab':          p(2,   1,   0.5,  0.05, 0,   0,     600,  0.5, 0,   0.9,  0.001,0.1,  0,    0.05, 0.001,0.08, 0,    0.1,  1,   0,    0.5,  0.15),
+
+  // --- FX & TEXTURES ---
+  'Wind':          p(0,   0,   0,    0,    0,   0.8,   3000, 0.1, 2,   0.3,  0.5,  1.0,  0.3,  2.0,  1.5,  1.0,  0.4,  2.5,  0.3, 0.5,  0.35, 0),
+  'Noise Sweep':   p(1,   0,   0.2,  0,    0,   0.6,   200,  0.5, 0,   0.9,  0.001,2.0,  0,    0.5,  0.01, 2.0,  0,    0.5,  1,   0,    0.4,  0),
+  'Metallic':      p(2,   2,   0.5,  0.7,  1,   0,     4000, 0.7, 2,   0.6,  0.001,0.5,  0,    0.5,  0.001,0.6,  0,    0.8,  1,   0,    0.35, 0.3),
+  'Hollow':        p(2,   0,   0.5,  0,    0,   0,     1800, 0.65,2,   0.4,  0.05, 0.4,  0.1,  0.4,  0.05, 0.3,  0.6,  0.4,  2.0, 0.2,  0.4,  0),
+};
+
+function applyPreset(name) {
+  const preset = PRESETS[name];
+  if (!preset) return;
+
+  for (const [paramStr, value] of Object.entries(preset)) {
+    const param = parseInt(paramStr);
+    send({ type: 'param', param, value });
+
+    // Update the UI control to match
+    const el = document.querySelector(`[data-param="${param}"]`);
+    if (!el) continue;
+
+    if (el.tagName === 'SELECT') {
+      el.value = String(value);
+    } else {
+      el.value = value;
+      const label = el.nextElementSibling;
+      if (label) label.textContent = Number(value).toFixed(2);
+    }
+  }
+
+  // Highlight active preset button
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.preset === name);
+  });
+}
+
+function setupPresets() {
+  const container = document.getElementById('presets');
+  for (const name of Object.keys(PRESETS)) {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn';
+    btn.dataset.preset = name;
+    btn.textContent = name;
+    if (name === 'Init') btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      start();
+      applyPreset(name);
+    });
+    container.appendChild(btn);
+  }
+}
+
+function setupOctaveRoot() {
+  const octaveEl = document.getElementById('octave-select');
+  const rootEl = document.getElementById('root-select');
+
+  octaveEl.value = currentOctave;
+  rootEl.value = currentRoot;
+
+  octaveEl.addEventListener('change', () => {
+    releaseAll();
+    currentOctave = parseInt(octaveEl.value);
+    rebuildPiano();
+  });
+
+  rootEl.addEventListener('change', () => {
+    releaseAll();
+    currentRoot = parseInt(rootEl.value);
+    rebuildPiano();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  rebuildPiano();
+  setupOctaveRoot();
+  setupCapture();
+  setupPresets();
+
+  document.querySelectorAll('[data-param]').forEach(el => {
+    el.addEventListener('input', () => {
+      start();
+      const param = parseInt(el.dataset.param);
+      const value = parseFloat(el.value);
+      send({ type: 'param', param, value });
+      const label = el.nextElementSibling;
+      if (label) label.textContent = value.toFixed(2);
+    });
+  });
+});
