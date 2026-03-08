@@ -376,6 +376,43 @@ h1 {
 /* Presets */
 .presets {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.preset-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.preset-tab {
+  padding: 5px 12px;
+  background: transparent;
+  color: #5a6577;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 0.7em;
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.12s;
+  outline: none;
+}
+
+.preset-tab:hover {
+  color: #8b95a5;
+}
+
+.preset-tab.active {
+  color: #ff6b8a;
+  border-bottom-color: #ff6b8a;
+}
+
+.preset-grid {
+  display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }

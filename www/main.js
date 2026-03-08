@@ -332,6 +332,15 @@ function p(osc1, osc2, mix, detune, oct, noise,
   };
 }
 
+const PRESET_CATEGORIES = {
+  'All': null,
+  'Leads': ['Classic Lead', 'Screamer', 'Acid Lead', 'Fizzy Lead', 'Sync Lead', 'Trance Lead'],
+  'Bass': ['Thick Bass', 'Sub Bass', 'Reese', 'Dirty Bass', 'Wobble Bass', '808 Bass', 'Squelch Bass'],
+  'Pads': ['Soft Pad', 'Warm Pad', 'Dark Pad', 'Ethereal', 'Ice Pad', 'Choir'],
+  'Keys': ['Pluck', 'Bell', 'Marimba', 'Organ', 'EP Piano', 'Kalimba'],
+  'FX': ['Brass Stab', 'Hoover', 'Stab', 'Wind', 'Noise Sweep', 'Metallic', 'Hollow', 'Laser', 'Siren', 'Droplet'],
+};
+
 const PRESETS = {
   //                osc1 osc2 mix   det   oct  noise  cut   res  ft   famt  fA    fD    fS    fR    aA    aD    aS    aR    lR   lA    gain  drv
   // --- LEADS ---
@@ -339,6 +348,8 @@ const PRESETS = {
   'Screamer':      p(1,   2,   0.5,  0.06, 0,   0,     1200, 0.7, 0,   0.9,  0.01, 0.2,  0,    0.1,  0.005,0.08, 0.85, 0.15, 1,   0,    0.4,  0.5),
   'Acid Lead':     p(2,   2,   0,    0,    0,   0,     400,  0.88,0,   0.95, 0.001,0.15, 0,    0.05, 0.001,0.1,  0,    0.05, 1,   0,    0.5,  0.3),
   'Fizzy Lead':    p(1,   1,   0.5,  0.15, 0,   0.08,  3000, 0.4, 0,   0.5,  0.01, 0.25, 0.15, 0.2,  0.005,0.1,  0.8,  0.2,  5.5, 0.15, 0.45, 0.2),
+  'Sync Lead':     p(1,   2,   0.5,  0.02, 0,   0,     3500, 0.5, 0,   0.7,  0.005,0.2,  0.05, 0.15, 0.005,0.1,  0.8,  0.15, 1,   0,    0.5,  0.2),
+  'Trance Lead':   p(1,   1,   0.5,  0.1,  0,   0,     2500, 0.4, 0,   0.75, 0.001,0.15, 0,    0.1,  0.001,0.1,  0.85, 0.15, 1,   0,    0.5,  0.1),
 
   // --- BASSES ---
   'Thick Bass':    p(1,   2,   0.5,  0.05, -1,  0,     600,  0.5, 0,   0.7,  0.001,0.2,  0,    0.1,  0.005,0.15, 0.6,  0.1,  1,   0,    0.55, 0.15),
@@ -346,29 +357,36 @@ const PRESETS = {
   'Reese':         p(1,   1,   0.5,  0.12, 0,   0,     1000, 0.35,0,   0.4,  0.01, 0.5,  0.2,  0.3,  0.01, 0.3,  0.8,  0.15, 0.3, 0.3,  0.5,  0.1),
   'Dirty Bass':    p(2,   1,   0.6,  0.03, -1,  0,     500,  0.6, 0,   0.8,  0.001,0.18, 0,    0.08, 0.001,0.12, 0.7,  0.08, 1,   0,    0.5,  0.6),
   'Wobble Bass':   p(1,   2,   0.5,  0.05, -1,  0,     800,  0.5, 0,   0,    0.01, 0.3,  0,    0.3,  0.005,0.1,  0.8,  0.1,  3.0, 0.7,  0.5,  0.2),
+  '808 Bass':      p(0,   0,   0,    0,    -1,  0,     200,  0.15,0,   0.3,  0.001,0.6,  0,    0.4,  0.001,0.8,  0,    0.6,  1,   0,    0.7,  0.3),
+  'Squelch Bass':  p(1,   2,   0.4,  0.04, -1,  0,     350,  0.85,0,   0.95, 0.001,0.12, 0,    0.06, 0.001,0.1,  0.6,  0.08, 1,   0,    0.5,  0.4),
 
   // --- PADS ---
   'Soft Pad':      p(3,   0,   0.5,  0.08, 0,   0,     2500, 0.05,0,   0.2,  0.5,  0.8,  0.3,  1.5,  0.8,  0.6,  0.7,  1.5,  0.4, 0.15, 0.4,  0),
   'Warm Pad':      p(1,   1,   0.5,  0.15, 0,   0,     1800, 0.2, 0,   0.3,  0.6,  1.0,  0.2,  2.0,  1.0,  0.8,  0.65, 2.0,  0.2, 0.1,  0.4,  0),
   'Dark Pad':      p(1,   2,   0.5,  0.2,  -1,  0,     800,  0.3, 0,   0.15, 0.8,  1.2,  0.1,  2.0,  1.5,  1.0,  0.5,  2.5,  0.15,0.2,  0.4,  0),
   'Ethereal':      p(0,   3,   0.6,  0.2,  1,   0.05,  2500, 0.15,0,   0.3,  1.0,  1.2,  0.2,  2.5,  1.2,  1.0,  0.5,  2.5,  0.5, 0.25, 0.35, 0),
+  'Ice Pad':       p(2,   3,   0.4,  0.25, 1,   0.03,  5000, 0.1, 0,   0.4,  0.8,  1.0,  0.15, 2.0,  1.2,  0.8,  0.6,  2.5,  0.6, 0.2,  0.35, 0),
+  'Choir':         p(0,   0,   0.5,  0.18, 0,   0.02,  1500, 0.25,0,   0.2,  0.8,  0.6,  0.4,  1.5,  1.0,  0.5,  0.75, 2.0,  5.0, 0.08, 0.4,  0),
 
   // --- KEYS & PLUCKS ---
   'Pluck':         p(1,   3,   0.35, 0.05, 0,   0,     1200, 0.3, 0,   0.8,  0.001,0.2,  0,    0.15, 0.001,0.15, 0,    0.2,  1,   0,    0.55, 0),
   'Bell':          p(0,   3,   0.4,  0.5,  1,   0,     6000, 0.05,0,   0.5,  0.001,0.8,  0,    1.0,  0.001,1.0,  0,    1.5,  1,   0,    0.4,  0),
   'Marimba':       p(0,   3,   0.3,  0,    0,   0,     3000, 0.1, 0,   0.7,  0.001,0.15, 0,    0.1,  0.001,0.12, 0,    0.15, 1,   0,    0.55, 0),
   'Organ':         p(0,   2,   0.4,  0,    -1,  0,     10000,0,   0,   0,    0.01, 0.01, 0,    0.01, 0.005,0.01, 1.0,  0.01, 1,   0,    0.35, 0.05),
+  'EP Piano':      p(0,   3,   0.35, 0.01, 0,   0,     4000, 0.08,0,   0.5,  0.001,0.4,  0,    0.3,  0.001,0.3,  0.3,  0.4,  1,   0,    0.5,  0),
+  'Kalimba':       p(0,   3,   0.25, 0,    1,   0,     5000, 0.05,0,   0.6,  0.001,0.1,  0,    0.08, 0.001,0.08, 0,    0.3,  1,   0,    0.5,  0),
 
-  // --- STABS & HITS ---
+  // --- FX ---
   'Brass Stab':    p(1,   2,   0.4,  0.03, 0,   0,     800,  0.3, 0,   0.85, 0.01, 0.15, 0,    0.1,  0.02, 0.15, 0.5,  0.12, 1,   0,    0.5,  0.1),
   'Hoover':        p(1,   1,   0.5,  0.3,  -1,  0,     2000, 0.4, 0,   0.6,  0.02, 0.3,  0.2,  0.2,  0.02, 0.2,  0.7,  0.2,  1,   0,    0.4,  0.35),
   'Stab':          p(2,   1,   0.5,  0.05, 0,   0,     600,  0.5, 0,   0.9,  0.001,0.1,  0,    0.05, 0.001,0.08, 0,    0.1,  1,   0,    0.5,  0.15),
-
-  // --- FX & TEXTURES ---
   'Wind':          p(0,   0,   0,    0,    0,   0.8,   3000, 0.1, 2,   0.3,  0.5,  1.0,  0.3,  2.0,  1.5,  1.0,  0.4,  2.5,  0.3, 0.5,  0.35, 0),
   'Noise Sweep':   p(1,   0,   0.2,  0,    0,   0.6,   200,  0.5, 0,   0.9,  0.001,2.0,  0,    0.5,  0.01, 2.0,  0,    0.5,  1,   0,    0.4,  0),
   'Metallic':      p(2,   2,   0.5,  0.7,  1,   0,     4000, 0.7, 2,   0.6,  0.001,0.5,  0,    0.5,  0.001,0.6,  0,    0.8,  1,   0,    0.35, 0.3),
   'Hollow':        p(2,   0,   0.5,  0,    0,   0,     1800, 0.65,2,   0.4,  0.05, 0.4,  0.1,  0.4,  0.05, 0.3,  0.6,  0.4,  2.0, 0.2,  0.4,  0),
+  'Laser':         p(1,   2,   0.5,  0.5,  1,   0,     8000, 0.6, 0,  -0.9,  0.001,0.3,  0,    0.1,  0.001,0.2,  0,    0.2,  1,   0,    0.4,  0.4),
+  'Siren':         p(0,   0,   0.5,  0.02, 0,   0,     3000, 0.2, 0,   0.6,  0.1,  0.5,  0.3,  0.5,  0.05, 0.3,  0.8,  0.5,  2.0, 0.8,  0.4,  0),
+  'Droplet':       p(0,   3,   0.3,  0,    2,   0,     6000, 0.1, 0,   0.7,  0.001,0.05, 0,    0.03, 0.001,0.04, 0,    0.5,  1,   0,    0.5,  0),
 };
 
 function applyPreset(name) {
@@ -404,6 +422,28 @@ function applyPreset(name) {
 
 function setupPresets() {
   const container = document.getElementById('presets');
+
+  // Category tabs
+  const tabs = document.createElement('div');
+  tabs.className = 'preset-tabs';
+  for (const cat of Object.keys(PRESET_CATEGORIES)) {
+    const tab = document.createElement('button');
+    tab.className = 'preset-tab';
+    tab.textContent = cat;
+    if (cat === 'All') tab.classList.add('active');
+    tab.addEventListener('click', () => {
+      tabs.querySelectorAll('.preset-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      filterPresets(cat);
+    });
+    tabs.appendChild(tab);
+  }
+  container.appendChild(tabs);
+
+  // Preset buttons
+  const grid = document.createElement('div');
+  grid.className = 'preset-grid';
+  grid.id = 'preset-grid';
   for (const name of Object.keys(PRESETS)) {
     const btn = document.createElement('button');
     btn.className = 'preset-btn';
@@ -414,8 +454,17 @@ function setupPresets() {
       start();
       applyPreset(name);
     });
-    container.appendChild(btn);
+    grid.appendChild(btn);
   }
+  container.appendChild(grid);
+}
+
+function filterPresets(category) {
+  const grid = document.getElementById('preset-grid');
+  const allowed = PRESET_CATEGORIES[category];
+  grid.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.style.display = (!allowed || allowed.includes(btn.dataset.preset)) ? '' : 'none';
+  });
 }
 
 const NATURAL_NAMES = ['C','D','E','F','G','A','B'];
