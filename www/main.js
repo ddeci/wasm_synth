@@ -226,7 +226,6 @@ function rebuildPiano() {
     const bind = noteToKey[w.note] || '';
     key.innerHTML = `<span class="key-note">${getNoteLabel(w.note)}</span><span class="key-bind">${bind}</span>`;
 
-    addNoteEvents(key, w.note);
     piano.appendChild(key);
   });
 
@@ -248,33 +247,52 @@ function rebuildPiano() {
     key.style.left = `${leftPct}%`;
     key.style.width = `${blackWidthPct}%`;
 
-    addNoteEvents(key, b.note);
     piano.appendChild(key);
   });
 }
 
-function addNoteEvents(el, note) {
-  let down = false;
-  el.addEventListener('mousedown', (e) => {
+let pianoMouseDown = false;
+let pianoCurrentNote = null;
+
+function setupPianoMouse() {
+  const piano = document.getElementById('piano');
+
+  piano.addEventListener('mousedown', (e) => {
     e.preventDefault();
-    e.stopPropagation();
-    down = true;
+    const key = e.target.closest('.white-key, .black-key');
+    if (!key) return;
+    pianoMouseDown = true;
     start();
     document.getElementById('capture-input').focus();
+    const note = parseInt(key.dataset.note);
+    pianoCurrentNote = note;
     send({ type: 'noteOn', note, velocity: 0.8 });
     highlightKey(note, true);
   });
-  el.addEventListener('mouseup', () => {
-    if (!down) return;
-    down = false;
-    send({ type: 'noteOff', note });
-    highlightKey(note, false);
+
+  piano.addEventListener('mouseover', (e) => {
+    if (!pianoMouseDown) return;
+    const key = e.target.closest('.white-key, .black-key');
+    if (!key) return;
+    const note = parseInt(key.dataset.note);
+    if (note === pianoCurrentNote) return;
+    if (pianoCurrentNote !== null) {
+      send({ type: 'noteOff', note: pianoCurrentNote });
+      highlightKey(pianoCurrentNote, false);
+    }
+    pianoCurrentNote = note;
+    send({ type: 'noteOn', note, velocity: 0.8 });
+    highlightKey(note, true);
   });
-  el.addEventListener('mouseleave', () => {
-    if (!down) return;
-    down = false;
-    send({ type: 'noteOff', note });
-    highlightKey(note, false);
+
+  document.addEventListener('mouseup', () => {
+    if (!pianoMouseDown) return;
+    pianoMouseDown = false;
+    if (pianoCurrentNote !== null) {
+      send({ type: 'noteOff', note: pianoCurrentNote });
+      highlightKey(pianoCurrentNote, false);
+      pianoCurrentNote = null;
+    }
   });
 }
 
@@ -452,6 +470,7 @@ function setupNoteGrid() {
 
 document.addEventListener('DOMContentLoaded', () => {
   rebuildPiano();
+  setupPianoMouse();
   setupNoteGrid();
   setupCapture();
   setupPresets();
