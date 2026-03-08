@@ -1,6 +1,6 @@
 use crate::envelope::Envelope;
 use crate::filter::Filter;
-use crate::lfo::Lfo;
+use crate::lfo::{Lfo, LfoTarget};
 use crate::oscillator::{Oscillator, Waveform};
 
 pub struct Voice {
@@ -9,6 +9,7 @@ pub struct Voice {
     pub filter: Filter,
     pub envelope: Envelope,
     pub filter_env: Envelope,
+    pub pitch_env: Envelope,
     pub lfo: Lfo,
     pub note: u8,
     pub velocity: f32,
@@ -29,6 +30,7 @@ impl Voice {
             filter: Filter::new(sample_rate),
             envelope: Envelope::new(sample_rate),
             filter_env: Envelope::new(sample_rate),
+            pitch_env: Envelope::new(sample_rate),
             lfo: Lfo::new(sample_rate),
             note: 0,
             velocity: 0.0,
@@ -49,11 +51,13 @@ impl Voice {
         self.lfo.reset();
         self.envelope.trigger();
         self.filter_env.trigger();
+        self.pitch_env.trigger();
     }
 
     pub fn note_off(&mut self) {
         self.envelope.release();
         self.filter_env.release();
+        self.pitch_env.release();
     }
 
     pub fn is_free(&self) -> bool {
@@ -76,19 +80,35 @@ impl Voice {
         filter_env_amount: f32,
         base_cutoff: f32,
         drive: f32,
+        pitch_env_amount: f32,
     ) -> f32 {
-        let s1 = self.osc1.tick(self.freq);
-        let osc2_freq = self.freq * 2.0_f32.powf(osc2_octave);
+        let lfo_val = self.lfo.tick();
+        let penv = self.pitch_env.tick();
+
+        // Pitch modulation: pitch envelope + LFO (if targeting pitch)
+        let pitch_mod_semitones = pitch_env_amount * penv * 24.0
+            + if self.lfo.target == LfoTarget::Pitch {
+                lfo_val * 12.0
+            } else {
+                0.0
+            };
+        let freq_mod = self.freq * 2.0_f32.powf(pitch_mod_semitones / 12.0);
+
+        let s1 = self.osc1.tick(freq_mod);
+        let osc2_freq = freq_mod * 2.0_f32.powf(osc2_octave);
         let s2 = self.osc2.tick(osc2_freq);
         let noise = self.white_noise() * noise_level;
 
         let mixed = s1 * (1.0 - osc_mix) + s2 * osc_mix + noise;
 
-        // Filter modulation: base cutoff + filter envelope + LFO
+        // Filter modulation: base cutoff + filter envelope + LFO (if targeting filter)
         let fenv = self.filter_env.tick();
-        let lfo_val = self.lfo.tick();
-        // Filter env amount: maps 0..1 to 0..18000 Hz offset
-        let cutoff_mod = filter_env_amount * fenv * 16000.0 + lfo_val * 4000.0;
+        let lfo_filter = if self.lfo.target == LfoTarget::FilterCutoff {
+            lfo_val * 4000.0
+        } else {
+            0.0
+        };
+        let cutoff_mod = filter_env_amount * fenv * 16000.0 + lfo_filter;
         self.filter.cutoff = (base_cutoff + cutoff_mod).clamp(20.0, 18000.0);
 
         let filtered = self.filter.tick(mixed);
@@ -103,7 +123,15 @@ impl Voice {
         };
 
         let env = self.envelope.tick();
-        driven * env * self.velocity
+
+        // Amplitude LFO (tremolo)
+        let amp_lfo = if self.lfo.target == LfoTarget::Amplitude {
+            1.0 + lfo_val * 0.5
+        } else {
+            1.0
+        };
+
+        driven * env * self.velocity * amp_lfo
     }
 }
 

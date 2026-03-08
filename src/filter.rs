@@ -5,6 +5,7 @@ pub enum FilterMode {
     LowPass,
     HighPass,
     BandPass,
+    Notch,
 }
 
 pub struct Filter {
@@ -51,6 +52,11 @@ impl Filter {
             FilterMode::LowPass => v2,
             FilterMode::HighPass => input - k * v1 - v2,
             FilterMode::BandPass => v1,
+            FilterMode::Notch => {
+                let lp = v2;
+                let hp = input - k * v1 - v2;
+                lp + hp
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 pub struct Envelope {
     pub attack: f32,  // seconds
     pub decay: f32,   // seconds
-    pub sustain: f32,  // 0..1
+    pub sustain: f32, // 0..1
     pub release: f32, // seconds
     stage: Stage,
     level: f32,
@@ -77,5 +77,4 @@ impl Envelope {
         }
         self.level
     }
-
 }

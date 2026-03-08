@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WASM Synth</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230d1117'/><polyline points='2,16 5,10 8,20 11,8 14,22 17,12 20,18 23,6 26,24 29,14' fill='none' stroke='%23ff6b8a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -88,6 +89,7 @@
             <button class="filter-type-btn active" data-value="0">LP</button>
             <button class="filter-type-btn" data-value="1">HP</button>
             <button class="filter-type-btn" data-value="2">BP</button>
+            <button class="filter-type-btn" data-value="3">Notch</button>
           </div>
         </div>
         <div class="control">
@@ -138,6 +140,24 @@
       <h2>LFO</h2>
       <div class="controls">
         <div class="control">
+          <label>Wave</label>
+          <div class="filter-type-toggle" data-param="27">
+            <button class="filter-type-btn active" data-value="0">Sin</button>
+            <button class="filter-type-btn" data-value="1">Tri</button>
+            <button class="filter-type-btn" data-value="2">Saw</button>
+            <button class="filter-type-btn" data-value="3">Sq</button>
+            <button class="filter-type-btn" data-value="4">S&amp;H</button>
+          </div>
+        </div>
+        <div class="control">
+          <label>Target</label>
+          <div class="filter-type-toggle" data-param="28">
+            <button class="filter-type-btn active" data-value="0">Filter</button>
+            <button class="filter-type-btn" data-value="1">Pitch</button>
+            <button class="filter-type-btn" data-value="2">Amp</button>
+          </div>
+        </div>
+        <div class="control">
           <label>Rate</label>
           <input type="range" data-param="25" min="0.05" max="20" step="0.05" value="1">
           <span class="value">1.00</span>
@@ -146,6 +166,37 @@
           <label>Amount</label>
           <input type="range" data-param="26" min="0" max="1" step="0.01" value="0">
           <span class="value">0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Pitch Envelope</h2>
+      <div class="controls">
+        <div class="control">
+          <label>Amount</label>
+          <input type="range" data-param="18" min="-1" max="1" step="0.01" value="0">
+          <span class="value">0.00</span>
+        </div>
+        <div class="control">
+          <label>Attack</label>
+          <input type="range" data-param="19" min="0.001" max="2" step="0.001" value="0.01">
+          <span class="value">0.01</span>
+        </div>
+        <div class="control">
+          <label>Decay</label>
+          <input type="range" data-param="40" min="0.001" max="2" step="0.001" value="0.1">
+          <span class="value">0.10</span>
+        </div>
+        <div class="control">
+          <label>Sustain</label>
+          <input type="range" data-param="41" min="0" max="1" step="0.01" value="0">
+          <span class="value">0.00</span>
+        </div>
+        <div class="control">
+          <label>Release</label>
+          <input type="range" data-param="42" min="0.001" max="3" step="0.001" value="0.1">
+          <span class="value">0.10</span>
         </div>
       </div>
     </div>

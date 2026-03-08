@@ -5,6 +5,7 @@ mod oscillator;
 mod voice;
 
 use filter::FilterMode;
+use lfo::{LfoTarget, LfoWaveform};
 use oscillator::Waveform;
 use voice::VoicePool;
 use wasm_bindgen::prelude::*;
@@ -17,6 +18,7 @@ pub struct Synth {
     osc2_octave: f32,
     filter_cutoff: f32,
     filter_env_amount: f32,
+    pitch_env_amount: f32,
     drive: f32,
     gain: f32,
     buffer: Vec<f32>,
@@ -33,6 +35,7 @@ impl Synth {
             osc2_octave: 0.0,
             filter_cutoff: 8000.0,
             filter_env_amount: 0.0,
+            pitch_env_amount: 0.0,
             drive: 0.0,
             gain: 0.5,
             buffer: Vec::with_capacity(128),
@@ -64,6 +67,7 @@ impl Synth {
                         self.filter_env_amount,
                         self.filter_cutoff,
                         self.drive,
+                        self.pitch_env_amount,
                     );
                 }
             }
@@ -83,39 +87,152 @@ impl Synth {
             0 => FilterMode::LowPass,
             1 => FilterMode::HighPass,
             2 => FilterMode::BandPass,
+            3 => FilterMode::Notch,
             _ => FilterMode::LowPass,
+        };
+        let lfo_waveform = |v: f32| match v as u8 {
+            0 => LfoWaveform::Sine,
+            1 => LfoWaveform::Triangle,
+            2 => LfoWaveform::Saw,
+            3 => LfoWaveform::Square,
+            4 => LfoWaveform::SampleAndHold,
+            _ => LfoWaveform::Sine,
+        };
+        let lfo_target = |v: f32| match v as u8 {
+            0 => LfoTarget::FilterCutoff,
+            1 => LfoTarget::Pitch,
+            2 => LfoTarget::Amplitude,
+            _ => LfoTarget::FilterCutoff,
         };
 
         match param {
             // Oscillators
-            0 => { let wf = waveform(value); for v in &mut self.pool.voices { v.osc1.waveform = wf; } }
-            1 => { let wf = waveform(value); for v in &mut self.pool.voices { v.osc2.waveform = wf; } }
+            0 => {
+                let wf = waveform(value);
+                for v in &mut self.pool.voices {
+                    v.osc1.waveform = wf;
+                }
+            }
+            1 => {
+                let wf = waveform(value);
+                for v in &mut self.pool.voices {
+                    v.osc2.waveform = wf;
+                }
+            }
             2 => self.osc_mix = value,
-            3 => { for v in &mut self.pool.voices { v.osc2.detune = value; } }
-            4 => self.osc2_octave = value,     // -2..+2 octaves
-            5 => self.noise_level = value,      // 0..1
+            3 => {
+                for v in &mut self.pool.voices {
+                    v.osc2.detune = value;
+                }
+            }
+            4 => self.osc2_octave = value, // -2..+2 octaves
+            5 => self.noise_level = value, // 0..1
 
             // Filter
             10 => self.filter_cutoff = value,
-            11 => { for v in &mut self.pool.voices { v.filter.resonance = value; } }
-            12 => { let m = filter_mode(value); for v in &mut self.pool.voices { v.filter.mode = m; } }
+            11 => {
+                for v in &mut self.pool.voices {
+                    v.filter.resonance = value;
+                }
+            }
+            12 => {
+                let m = filter_mode(value);
+                for v in &mut self.pool.voices {
+                    v.filter.mode = m;
+                }
+            }
 
             // Filter envelope
             13 => self.filter_env_amount = value, // 0..1
-            14 => { for v in &mut self.pool.voices { v.filter_env.attack = value; } }
-            15 => { for v in &mut self.pool.voices { v.filter_env.decay = value; } }
-            16 => { for v in &mut self.pool.voices { v.filter_env.sustain = value; } }
-            17 => { for v in &mut self.pool.voices { v.filter_env.release = value; } }
+            14 => {
+                for v in &mut self.pool.voices {
+                    v.filter_env.attack = value;
+                }
+            }
+            15 => {
+                for v in &mut self.pool.voices {
+                    v.filter_env.decay = value;
+                }
+            }
+            16 => {
+                for v in &mut self.pool.voices {
+                    v.filter_env.sustain = value;
+                }
+            }
+            17 => {
+                for v in &mut self.pool.voices {
+                    v.filter_env.release = value;
+                }
+            }
 
             // Amp envelope
-            20 => { for v in &mut self.pool.voices { v.envelope.attack = value; } }
-            21 => { for v in &mut self.pool.voices { v.envelope.decay = value; } }
-            22 => { for v in &mut self.pool.voices { v.envelope.sustain = value; } }
-            23 => { for v in &mut self.pool.voices { v.envelope.release = value; } }
+            20 => {
+                for v in &mut self.pool.voices {
+                    v.envelope.attack = value;
+                }
+            }
+            21 => {
+                for v in &mut self.pool.voices {
+                    v.envelope.decay = value;
+                }
+            }
+            22 => {
+                for v in &mut self.pool.voices {
+                    v.envelope.sustain = value;
+                }
+            }
+            23 => {
+                for v in &mut self.pool.voices {
+                    v.envelope.release = value;
+                }
+            }
+
+            // Pitch envelope
+            18 => self.pitch_env_amount = value,
+            19 => {
+                for v in &mut self.pool.voices {
+                    v.pitch_env.attack = value;
+                }
+            }
+            40 => {
+                for v in &mut self.pool.voices {
+                    v.pitch_env.decay = value;
+                }
+            }
+            41 => {
+                for v in &mut self.pool.voices {
+                    v.pitch_env.sustain = value;
+                }
+            }
+            42 => {
+                for v in &mut self.pool.voices {
+                    v.pitch_env.release = value;
+                }
+            }
 
             // LFO
-            25 => { for v in &mut self.pool.voices { v.lfo.rate = value; } }
-            26 => { for v in &mut self.pool.voices { v.lfo.amount = value; } }
+            25 => {
+                for v in &mut self.pool.voices {
+                    v.lfo.rate = value;
+                }
+            }
+            26 => {
+                for v in &mut self.pool.voices {
+                    v.lfo.amount = value;
+                }
+            }
+            27 => {
+                let w = lfo_waveform(value);
+                for v in &mut self.pool.voices {
+                    v.lfo.waveform = w;
+                }
+            }
+            28 => {
+                let t = lfo_target(value);
+                for v in &mut self.pool.voices {
+                    v.lfo.target = t;
+                }
+            }
 
             // Output
             30 => self.gain = value,
