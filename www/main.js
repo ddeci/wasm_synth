@@ -89,7 +89,7 @@ async function doStart() {
   });
 
   analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 2048;
+  analyser.fftSize = 4096;
   workletNode.connect(analyser);
   analyser.connect(audioCtx.destination);
 
@@ -517,6 +517,8 @@ function initVisualizer() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
+  const drawLen = 512;
+
   function draw() {
     requestAnimationFrame(draw);
 
@@ -534,10 +536,20 @@ function initVisualizer() {
     if (analyser) {
       const buf = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteTimeDomainData(buf);
-      const sliceWidth = w / buf.length;
+
+      // Find a rising zero-crossing to stabilize the display
+      let trigger = 0;
+      for (let i = 1; i < buf.length - drawLen; i++) {
+        if (buf[i - 1] < 128 && buf[i] >= 128) {
+          trigger = i;
+          break;
+        }
+      }
+
+      const sliceWidth = w / drawLen;
       let x = 0;
-      for (let i = 0; i < buf.length; i++) {
-        const y = (buf[i] / 255) * h;
+      for (let i = 0; i < drawLen; i++) {
+        const y = (buf[trigger + i] / 255) * h;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
         x += sliceWidth;
