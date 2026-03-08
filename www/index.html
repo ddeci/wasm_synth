@@ -11,31 +11,9 @@
     <h1>WASM SYNTH</h1>
     <div class="section">
       <h2>Keyboard</h2>
-      <div class="keyboard-controls">
-        <div class="control">
-          <label>Octave</label>
-          <select id="octave-select">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4" selected>4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-          </select>
-        </div>
-        <div class="control">
-          <label>Root</label>
-          <select id="root-select">
-            <option value="0" selected>C</option>
-            <option value="1">D</option>
-            <option value="2">E</option>
-            <option value="3">F</option>
-            <option value="4">G</option>
-            <option value="5">A</option>
-            <option value="6">B</option>
-          </select>
-        </div>
+      <div class="note-picker">
+        <button id="note-picker-btn" class="note-picker-btn">C4</button>
+        <div id="note-grid" class="note-grid"></div>
       </div>
       <div id="capture-zone">
         <input id="capture-input" type="text" autocomplete="off" spellcheck="false">

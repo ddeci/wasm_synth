@@ -369,29 +369,62 @@ function setupPresets() {
   }
 }
 
-function setupOctaveRoot() {
-  const octaveEl = document.getElementById('octave-select');
-  const rootEl = document.getElementById('root-select');
+const NATURAL_NAMES = ['C','D','E','F','G','A','B'];
 
-  octaveEl.value = currentOctave;
-  rootEl.value = currentRoot;
+function setupNoteGrid() {
+  const btn = document.getElementById('note-picker-btn');
+  const grid = document.getElementById('note-grid');
 
-  octaveEl.addEventListener('change', () => {
-    releaseAll();
-    currentOctave = parseInt(octaveEl.value);
-    rebuildPiano();
+  // Header row
+  for (let oct = 1; oct <= 7; oct++) {
+    const header = document.createElement('div');
+    header.className = 'note-grid-header';
+    header.textContent = `Oct ${oct}`;
+    grid.appendChild(header);
+  }
+
+  // Note cells
+  for (let ri = 0; ri < NATURAL_NAMES.length; ri++) {
+    for (let oct = 1; oct <= 7; oct++) {
+      const cell = document.createElement('div');
+      cell.className = 'note-grid-cell';
+      cell.textContent = `${NATURAL_NAMES[ri]}${oct}`;
+      cell.dataset.root = ri;
+      cell.dataset.octave = oct;
+      if (oct === currentOctave && ri === currentRoot) cell.classList.add('selected');
+
+      cell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        releaseAll();
+        currentRoot = ri;
+        currentOctave = oct;
+        grid.querySelector('.selected')?.classList.remove('selected');
+        cell.classList.add('selected');
+        btn.textContent = `${NATURAL_NAMES[ri]}${oct}`;
+        grid.classList.remove('open');
+        btn.classList.remove('open');
+        rebuildPiano();
+      });
+
+      grid.appendChild(cell);
+    }
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = grid.classList.toggle('open');
+    btn.classList.toggle('open', isOpen);
   });
 
-  rootEl.addEventListener('change', () => {
-    releaseAll();
-    currentRoot = parseInt(rootEl.value);
-    rebuildPiano();
+  document.addEventListener('click', () => {
+    grid.classList.remove('open');
+    btn.classList.remove('open');
   });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   rebuildPiano();
-  setupOctaveRoot();
+  setupNoteGrid();
   setupCapture();
   setupPresets();
 
