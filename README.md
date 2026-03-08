@@ -4,19 +4,27 @@ A browser-based subtractive synthesizer. All DSP runs in Rust compiled to WebAss
 
 ## Features
 
+**Sound Engine**
 - 2 oscillators (saw, square, sine, triangle) with mix, detune, and octave offset
-- State-variable filter (LP/HP/BP) with cutoff and resonance
-- Dedicated filter envelope (ADSR + amount) for sweep effects
+- State-variable filter (LP/HP/BP/Notch) with cutoff and resonance
+- Filter envelope (ADSR + amount)
+- Pitch envelope (ADSR + amount) for 808 drops, plucks, and FX
 - Amplitude envelope (ADSR)
-- LFO modulating filter cutoff
+- LFO with 5 waveforms (sine, triangle, saw, square, sample & hold) and 3 targets (filter, pitch, amplitude)
 - White noise generator
 - Soft-clip distortion (tanh waveshaping)
 - 8-voice polyphony with voice stealing
-- 25+ presets (leads, basses, pads, keys, stabs, FX)
-- Keyboard input via ASDF (white keys) and QWERTY (black keys) rows with focus capture
-- Configurable octave and root note with Z/X octave switching
-- Responsive full-width piano keyboard
-- Filter type toggle buttons (LP/HP/BP)
+
+**Presets**
+- 18 curated presets across 4 categories (leads, bass, pads, keys)
+- Category filter tabs for quick browsing
+
+**Interface**
+- Responsive full-width piano keyboard with mouse glide
+- Real-time oscilloscope visualizer
+- Keyboard input via ASDF (white keys) and QWERTY (black keys) rows
+- Octave switching with Z/X keys
+- Configurable root note and octave
 
 ## Setup
 
@@ -54,9 +62,9 @@ wasm_synth/
 ├── src/
 │   ├── lib.rs          # wasm-bindgen entry, Synth struct, param routing
 │   ├── oscillator.rs   # Polyblep saw/square, sine, triangle
-│   ├── filter.rs       # State-variable filter (LP/HP/BP)
+│   ├── filter.rs       # State-variable filter (LP/HP/BP/Notch)
 │   ├── envelope.rs     # ADSR envelope
-│   ├── lfo.rs          # Sine LFO
+│   ├── lfo.rs          # LFO (sin/tri/saw/sq/S&H)
 │   └── voice.rs        # Voice (osc+filter+env+lfo), 8-voice pool
 └── www/
     ├── index.html      # UI layout
